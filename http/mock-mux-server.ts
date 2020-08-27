@@ -3,8 +3,10 @@
  * 实现 http 模块对 socket connection TCP 链接的多路复用
  */
 
-// Copyright 2018-2020 the Deno authors. All rights reserved. MIT license.
-import { Deferred, deferred } from "./deno/std/async/deferred.ts";
+import {
+  Deferred,
+  deferred,
+} from '../mods/deferred.ts';
 
 class TCPConnection {
   private count: number = 0;
@@ -13,19 +15,23 @@ class TCPConnection {
       setTimeout(() => {
         res(`tcp connection read ${this.count}`);
         this.count++;
-      }, 10000);
+      }, 5000);
     });
+  }
+
+  async readHttpRequest(): Promise<string> {
+    return new HTTPConnection().readBuff();
   }
 }
 
+let httpCount = 0;
 class HTTPConnection {
-  private count: number = 0;
   async readBuff(): Promise<string> {
     return new Promise((res) => {
       setTimeout(() => {
-        res(`http buff read ${this.count}`);
-        this.count++;
-      }, 1000);
+        res(`http buff read ${httpCount}`);
+        httpCount++;
+      }, 2000);
     });
   }
 }
@@ -40,7 +46,7 @@ interface TaggedYieldedValue<T> {
  * - The final result (the value returned and not yielded from the iterator)
  *   does not matter; if there is any, it is discarded.
  */
-export class MuxAsyncIterator<T> implements AsyncIterable<T> {
+class MuxAsyncIterator<T> implements AsyncIterable<T> {
   private iteratorCount = 0;
   private yields: Array<TaggedYieldedValue<T>> = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -98,24 +104,29 @@ export class MuxAsyncIterator<T> implements AsyncIterable<T> {
 }
 
 class MuxServer implements AsyncIterable<string> {
-  private connection: SimpleConnection;
-  constructor(connection: SimpleConnection) {
-    this.connection = connection;
+  private tcpConnectionPool: TCPConnection = new TCPConnection();
+  private async *iterateHttpRequests(conn: TCPConnection): AsyncIterableIterator<string> {
+    while(true) {
+      const msg = await conn.readHttpRequest();
+      yield msg;
+    }
   }
 
   private async *acceptConnAndIterateHttpRequests(mux: MuxAsyncIterator<string>): AsyncIterableIterator<string> {
-
+    const connectionMsg = await this.tcpConnectionPool.listen();
+    yield connectionMsg;
+    mux.add(this.acceptConnAndIterateHttpRequests(mux));
+    yield* this.iterateHttpRequests(this.tcpConnectionPool);
   }
 
-  async *[Symbol.asyncIterator](): AsyncIterableIterator<string> {
+  [Symbol.asyncIterator](): AsyncIterableIterator<string> {
     const mux: MuxAsyncIterator<string> = new MuxAsyncIterator();
     mux.add(this.acceptConnAndIterateHttpRequests(mux));
     return mux.iterate();
   }
 }
 
-// const server = new SimpleHttpServer(new SimpleConnection());
-
-// for await (const msg of simpleHttpServer) {
-//   console.log(msg);
-// }
+const server = new MuxServer();
+for await (const msg of server) {
+  console.log(msg);
+}
