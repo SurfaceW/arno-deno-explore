@@ -19,7 +19,7 @@ class SimpleHttpServer implements AsyncIterable<string> {
     this.connection = connection;
   }
 
-  async *[Symbol.asyncIterator](): AsyncIterableIterator<string> {
+  async *[Symbol.asyncIterator](): AsyncIterator<string> {
     while(true) {
       const res = await this.connection.listen();
       yield res;

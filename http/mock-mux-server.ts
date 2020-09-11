@@ -8,28 +8,28 @@ import {
   deferred,
 } from '../mods/deferred.ts';
 
-class TCPConnection {
-  private count: number = 0;
+class TCPConnectionPool {
+  public count: number = 0;
   async listen(): Promise<string> {
     return new Promise((res) => {
       setTimeout(() => {
-        res(`tcp connection read ${this.count}`);
+        res(`tcp connection connect #${this.count}`);
         this.count++;
       }, 5000);
     });
   }
 
-  async readHttpRequest(): Promise<string> {
-    return new HTTPConnection().readBuff();
+  async readHttpRequest(connectId: string): Promise<string> {
+    return new HTTPConnection().readBuff(connectId);
   }
 }
 
 let httpCount = 0;
 class HTTPConnection {
-  async readBuff(): Promise<string> {
+  async readBuff(connId: string): Promise<string> {
     return new Promise((res) => {
       setTimeout(() => {
-        res(`http buff read ${httpCount}`);
+        res(`http buff read ${httpCount} from tcp: #${connId}`);
         httpCount++;
       }, 2000);
     });
@@ -104,10 +104,10 @@ class MuxAsyncIterator<T> implements AsyncIterable<T> {
 }
 
 class MuxServer implements AsyncIterable<string> {
-  private tcpConnectionPool: TCPConnection = new TCPConnection();
-  private async *iterateHttpRequests(conn: TCPConnection): AsyncIterableIterator<string> {
+  private tcpConnectionPool: TCPConnectionPool = new TCPConnectionPool();
+  private async *iterateHttpRequests(conn: TCPConnectionPool, connectId: string): AsyncIterableIterator<string> {
     while(true) {
-      const msg = await conn.readHttpRequest();
+      const msg = await conn.readHttpRequest(connectId);
       yield msg;
     }
   }
@@ -116,7 +116,7 @@ class MuxServer implements AsyncIterable<string> {
     const connectionMsg = await this.tcpConnectionPool.listen();
     yield connectionMsg;
     mux.add(this.acceptConnAndIterateHttpRequests(mux));
-    yield* this.iterateHttpRequests(this.tcpConnectionPool);
+    yield* this.iterateHttpRequests(this.tcpConnectionPool, connectionMsg.split('#')[1]);
   }
 
   [Symbol.asyncIterator](): AsyncIterableIterator<string> {
