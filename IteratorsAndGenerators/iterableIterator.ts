@@ -18,7 +18,7 @@ console.log(data.next());
  * implementable generator
  */
 console.log('====== ObjWithIterator ======');
-class ObjWithIterator {
+class ObjWithIterator implements Iterable<number> {
   [Symbol.iterator](): IterableIterator<number> {
     return normalGenerator();
   }
@@ -42,7 +42,7 @@ for (const d of new ObjWithNextFn()) {
 }
 
 console.log('====== ObjWithIteratorFn ======');
-class ObjWithIteratorFn {
+class ObjWithIteratorFn implements Iterable<number> {
   *[Symbol.iterator](): IterableIterator<number> {
     yield 2000;
     yield* normalGenerator();
