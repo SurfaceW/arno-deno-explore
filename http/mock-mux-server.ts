@@ -49,31 +49,22 @@ interface TaggedYieldedValue<T> {
 class MuxAsyncIterator<T> implements AsyncIterable<T> {
   private iteratorCount = 0;
   private yields: Array<TaggedYieldedValue<T>> = [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private throws: any[] = [];
   private signal: Deferred<void> = deferred();
-
   add(iterator: AsyncIterableIterator<T>): void {
     ++this.iteratorCount;
     this.callIteratorNext(iterator);
   }
-
   private async callIteratorNext(
     iterator: AsyncIterableIterator<T>,
   ): Promise<void> {
-    try {
-      const { value, done } = await iterator.next();
-      if (done) {
-        --this.iteratorCount;
-      } else {
-        this.yields.push({ iterator, value });
-      }
-    } catch (e) {
-      this.throws.push(e);
+    const { value, done } = await iterator.next();
+    if (done) {
+      --this.iteratorCount;
+    } else {
+      this.yields.push({ iterator, value });
     }
     this.signal.resolve();
   }
-
   async *iterate(): AsyncIterableIterator<T> {
     while (this.iteratorCount > 0) {
       // Sleep until any of the wrapped iterators yields.
@@ -85,19 +76,11 @@ class MuxAsyncIterator<T> implements AsyncIterable<T> {
         yield value;
         this.callIteratorNext(iterator);
       }
-
-      if (this.throws.length) {
-        for (const e of this.throws) {
-          throw e;
-        }
-        this.throws.length = 0;
-      }
       // Clear the `yields` list and reset the `signal` promise.
       this.yields.length = 0;
       this.signal = deferred();
     }
   }
-
   [Symbol.asyncIterator](): AsyncIterableIterator<T> {
     return this.iterate();
   }
